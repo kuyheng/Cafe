@@ -1,17 +1,56 @@
+import { useEffect, useState } from "react";
 import AdminLayout from "./AdminLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { getMenuItems, type ApiMenuItem } from "@/lib/api";
 
-const items = [
-  { id: 1, name: "Espresso", category: "Coffee", price: "$3.50", status: "Active" },
-  { id: 2, name: "Cappuccino", category: "Coffee", price: "$4.50", status: "Active" },
-  { id: 3, name: "Butter Croissant", category: "Pastries", price: "$4.00", status: "Active" },
-  { id: 4, name: "Eggs Benedict", category: "Food", price: "$12.00", status: "Active" },
-  { id: 5, name: "Cold Brew", category: "Coffee", price: "$4.00", status: "Active" },
-];
+function formatPrice(price: string | number) {
+  const parsed = Number(price);
+  if (Number.isFinite(parsed)) {
+    return `$${parsed.toFixed(2)}`;
+  }
+  return String(price);
+}
+
+function toLabel(value: string) {
+  if (!value) {
+    return value;
+  }
+  return value[0].toUpperCase() + value.slice(1);
+}
 
 export default function AdminMenu() {
+  const [items, setItems] = useState<ApiMenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMenu = async () => {
+      try {
+        const rows = await getMenuItems();
+        if (active) {
+          setItems(rows);
+        }
+      } catch {
+        if (active) {
+          toast.error("Failed to load menu items from database.");
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadMenu();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -32,12 +71,26 @@ export default function AdminMenu() {
                   <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
                 </tr></thead>
                 <tbody>
+                  {loading && (
+                    <tr>
+                      <td colSpan={5} className="py-6 px-4 text-center text-muted-foreground">Loading menu items from PostgreSQL...</td>
+                    </tr>
+                  )}
+                  {!loading && items.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-6 px-4 text-center text-muted-foreground">No menu items found.</td>
+                    </tr>
+                  )}
                   {items.map((item) => (
                     <tr key={item.id} className="border-b border-border/50">
                       <td className="py-3 px-4 font-medium text-foreground">{item.name}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{item.category}</td>
-                      <td className="py-3 px-4 text-foreground">{item.price}</td>
-                      <td className="py-3 px-4"><span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">{item.status}</span></td>
+                      <td className="py-3 px-4 text-muted-foreground">{toLabel(item.category)}</td>
+                      <td className="py-3 px-4 text-foreground">{formatPrice(item.price)}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.is_active ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                          {item.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
                       <td className="py-3 px-4 text-right">
                         <Button size="icon" variant="ghost" className="h-8 w-8"><Pencil className="h-3.5 w-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
